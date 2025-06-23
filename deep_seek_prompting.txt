@@ -1,0 +1,46 @@
+FIRST PROMPT:
+
+Ask me one question at a time so we can develop a java class that extends the attached class.
+
+Use the package deepseek.demo for all your work. Use apache poi
+
+Define a public enum in its own file, call it DocumentStage with the following labels: 
+
+LOAD_EXCEL, LOAD_DOCX, RENAME_SHEETS, ADD_TEXT and SET_PAYLOAD. No more is required of DocumentStage
+
+The extended class will be called DocumentWorkUnit. Use DocumentStage to extend  DocumentWorkUnit.  
+Add only the following fields to DocumentWorkUnit: one that holds an excel workbook call it myExcel, another that holds a word document call it myWord. 
+These fields are public and do not need accessors methods. Use poi concrete classes.
+
+DocumentWorkUnit constructor should take an extra parameter: map of strings. This map contains a key called “stages”. 
+Its value contains the labels of DocumentStage separated by commas. Use these labels to feed the field called “stages” in the base class. 
+Verify the key exists and that each label is valid for DocumentStage
+
+Create a processing class, call it DocumentProcessor with 5 methods (each method takes and returns the same instance of  DocumentWorkUnit) 
+This class does not need to check the stages
+
+The first method called “loadExcel” uses the payload field from the base class to load the excel document into field called myExcel. 
+If the payload is null, store “null payload” as bytes in the payload field, set the field done to true and status to the html status code “unprocessable entity”. 
+If the payload can not be loaded add “invalid payload” as bytes to the payload field, set the done field to true and status to o the html status code “unprocessable entity”
+
+The second method called “loadDocx” uses the payload field from the base class to load the word document into field called myWord. 
+If the payload is null, store “null payload” as bytes in the payload field, set the field done to true and status to the html status code “unprocessable entity”. 
+If the payload can not be loaded add “invalid payload” as bytes to the payload field, set the done field to true and status to o the html status code “unprocessable entity”
+
+The third method called “renameSheet” uses myExcel field and renames the first sheet of the workbook to “DeepSeek”. 
+If myExcel is null, store “null workbook” as bytes in the payload field, set the field done to true and status to the html status code “unprocessable entity”. 
+If renaming sheet causes any exception add “invalid workbook” as bytes to the payload field, set the done field to true and status to o the html status code “unprocessable entity”
+
+The fourth method called “addText” uses myWord field and adds the text “DeepSeek” to the end of the document.
+If myWord is null, store “null docx” as bytes in the payload field, set the field done to true and status to the html status code “unprocessable entity”. 
+If adding text causes any exception add “invalid docx” as bytes to the payload field, set the done field to true and status to o the html status code “unprocessable entity”
+
+The fifth method called setPayload will do the following: if myExcel is not null will save the workbook in the  payload field. If myWord is not null will save the word document in the
+Payload field. In both cases set the done field to true and set the status field to http status success. If myExcel and myWord are both null or not null add “invalid state” as bytes 
+to the payload field, set the done field to true and status to o the html status code “unprocessable entity”
+
+————————————————————————————————
+
+SECOND PROMPT:
+
+use gradle to build the jar library. Include all dependencies required in the library
