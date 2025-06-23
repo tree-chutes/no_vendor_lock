@@ -6,3 +6,4 @@ In fact, neither Java nor Rust service consumers logic need to use Spring, Micro
 
 Note the driver files (Java or Rust) does not have references to vendor sdks nor cloudops technology. It is a simple set of rest endpoints that can be invoked from any middleware layer.
 
+The file called deep_seek_prompting.txt contains two prompts that create a fully functional service. Ops included.
