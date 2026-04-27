@@ -1,0 +1,17 @@
+{
+  "deployIp": "127.0.0.1",
+  "services": [
+    {
+      "language": "JAVA",
+      "name": "service1",
+      "builderClass": "co5.demo.DemoBuilder",
+      "passThrough_DUMMY": "TTTTTT"
+    },
+    {
+      "language": "RUST",
+      "name": "service2",
+      "protocol": "HTTP",
+      "passThrough_DUMMY": "TTTTTT"
+    }
+  ]
+}
