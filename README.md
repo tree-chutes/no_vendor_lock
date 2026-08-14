@@ -8,4 +8,4 @@ Note the driver files (Java or Rust) does not have references to vendor sdks nor
 
 The file called deep_seek_prompting.txt contains two prompts that create a fully functional service. Ops included.
 
-(./workflow_lifecycle_animated.gif)
+![Workflow](./workflow_lifecycle_animated.gif)
