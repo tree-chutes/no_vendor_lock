@@ -1,118 +1,148 @@
 package co5.driver;
 
+import co5.backflow.client.FluxMessageOuterClass;
 import co5.backflow.client.FluxMessageOuterClass.FluxMessage;
-import co5.backflow.client.FluxMessageOuterClass.FluxMessageBatch;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
+import com.google.protobuf.UnsafeByteOperations;
+import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.*;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.http.codec.json.Jackson2JsonDecoder;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.publisher.Sinks;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
 
 import javax.net.ssl.*;
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Streams {
-    byte[] bais = null;
-    byte[] bais1 = null;
-    Map<String, String> pdf;
-    int docs = 100000;
-    AtomicInteger counter = new AtomicInteger(docs);
-    String cert = "-----BEGIN CERTIFICATE-----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-----END CERTIFICATE-----";
-    String baseUrl;
+    String url;
+    static int docs = Integer.valueOf(System.getenv("DOCS"));
+    static int maxBatch = Integer.valueOf(System.getenv("MAX_BATCH"));;
+    static ConcurrentSkipListSet<String> flying = new ConcurrentSkipListSet();
+    static AtomicInteger counter = new AtomicInteger(docs);
+    static AtomicInteger batch = new AtomicInteger(0);
+    static AtomicBoolean subscribed = new AtomicBoolean(false);
+    public Streams() throws Exception{
+        url = String.format("https://%s", System.getenv("ADDRESS"));
+    }
 
-    public static void main(String[] args) {
-        int threads = 1;
-        ArrayList<ForkJoinTask<Boolean>> tasks = new ArrayList<>(threads);
-        for (int i = 0; i < threads; i++) {
-            tasks.add(ForkJoinPool.commonPool().submit(() -> {
-                CO5Subscriber subs;
-                Streams s = new Streams();
-                try {
-                    byte[] bais = Files.readAllBytes(Path.of("aca.pdf"));
-                    s.baseUrl = "https://" + args[1];
-                    UUID fluxId = UUID.randomUUID();
-                    CO5Subscriber subscriber = new CO5Subscriber(s.counter);
-                    WebClient wc = s.fluxTls(s.baseUrl);
-                    wc.post().uri("/stream")
-                            .contentType(MediaType.APPLICATION_PROTOBUF)
-                            .body(Flux.generate(
-                                            () -> 0,
-                                            (state, sink) -> {
-                                                s.pdf = new HashMap<>();
-                                                if (state % 2 == 0) {
-                                                    s.pdf.put("stages", "LOAD_PDF,ADD_PAGE,SAVE_PDF");
-                                                    s.pdf.put("message", "streams");
-                                                } else {
-                                                    s.pdf.put("stages", "LOAD_PDF,REMOVE_PAGE,SAVE_PDF");
-                                                }
-                                                sink.next(FluxMessage.newBuilder().setFlux(fluxId.toString())
-                                                        .setId(UUID.randomUUID().toString()).putAllParams(s.pdf)
-                                                        .setPayload(ByteString.copyFrom(bais)).build());
-                                                return ++state;
-                                            })
-                                    .publishOn(Schedulers.newBoundedElastic(3, s.docs, "publisher")), FluxMessageBatch.class)
-                            .accept(MediaType.APPLICATION_PROTOBUF)
-                            .retrieve().bodyToFlux(FluxMessage.class).subscribeOn(Schedulers.newBoundedElastic(2, s.docs, "subscriber")).subscribeWith(subscriber);
-                    long start = System.currentTimeMillis();
-                    subscriber.start = start;
-                    subscriber.total = s.docs;
-                    while (s.counter.get() > 0) {
-                        Thread.sleep(25);
+    public void run(){
+        int threads = Integer.parseInt(System.getenv("THREADS"));
+        int rounds = Integer.parseInt(System.getenv("ROUNDS"));
+        ArrayList<ForkJoinTask<Boolean>> tasks = new ArrayList<>();
+        for (int r = 0; r < rounds; rounds++) {
+            for (int i = 0; i < threads; i++) {
+                tasks.add(ForkJoinPool.commonPool().submit(() -> {
+                    Sinks.Many<FluxMessage> sink = Sinks.many().unicast().onBackpressureBuffer();
+                    CO5Subscriber subs;
+
+                    try {
+                        byte[] bais = Files.readAllBytes(Path.of("aca.pdf"));
+                        UUID fluxId = UUID.randomUUID();
+                        CO5Subscriber subscriber = new CO5Subscriber();
+                        WebClient wc = getWebClient(url);
+                        wc.post().uri("/stream")
+                                .contentType(MediaType.APPLICATION_PROTOBUF)
+                                .body(sink.asFlux()
+                                        /*.publishOn(Schedulers.newBoundedElastic(3, docs, "publisher"))*/, FluxMessageOuterClass.FluxMessage.class)
+                                .accept(MediaType.APPLICATION_PROTOBUF)
+                                .retrieve().bodyToFlux(FluxMessageOuterClass.FluxMessage.class).subscribeWith(subscriber);
+                        long start = System.currentTimeMillis();
+                        subscriber.start = start;
+                        subscriber.total = docs;
+                        while (!subscribed.getAcquire()){
+                            Thread.sleep(5);
+                        }
+                        ForkJoinTask<Boolean> t = ForkJoinPool.commonPool().submit(() -> {
+                            try {
+                                while (counter.getAcquire() > 0) {
+                                    int gap = Streams.maxBatch - Streams.batch.getAcquire();
+                                    if (gap > 0){
+                                        for (int c = 0; c < gap; c++) {
+                                            Map<String, String> pdf = new HashMap<>();
+                                            if (counter.get() % 2 == 0) {
+                                                pdf.put("stages", "LOAD_PDF,ADD_PAGE,SAVE_PDF");
+                                                pdf.put("message", "streams");
+                                            } else {
+                                                pdf.put("stages", "LOAD_PDF,REMOVE_PAGE,SAVE_PDF");
+                                            }
+                                            FluxMessage fm = FluxMessageOuterClass.FluxMessage.newBuilder().setFlux(fluxId.toString())
+                                                    .setId(UUID.randomUUID().toString()).putAllParams(pdf).setSent(-1)
+                                                    .setPayload(UnsafeByteOperations.unsafeWrap(bais)).build();
+                                            Streams.flying.add(fm.getId());
+                                            sink.emitNext(fm, Sinks.EmitFailureHandler.busyLooping(Duration.ofMillis(3)));
+                                            Streams.batch.incrementAndGet();
+                                        }
+                                        //System.out.println(String.format("%d sent", gap));
+                                    }
+                                    Thread.sleep(5);
+                                }
+                            } catch (Exception x) {
+                                x.printStackTrace();
+                            }
+                            return true;
+                        });
+                        t.join();
+                        System.out.println("Millis per doc" + (System.currentTimeMillis() - start) / docs);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
                     }
-                    System.out.println("Millis per doc" + (System.currentTimeMillis() - start) / s.docs);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                return true;
-            }));
+                    return true;
+                }));
+            }
+            for (ForkJoinTask<Boolean> t : tasks) {
+                t.join();
+            }
         }
-        for (ForkJoinTask<Boolean> t : tasks){
-            t.join();
+    }
+    public static void main(String[] args) {
+        try{
+            Streams s = new Streams();
+            s.run();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private WebClient fluxTls(String baseUrl) throws Exception {
-        SslContext sslContext = buildClientSslContext(loadCertificate_1(cert));
+    private WebClient getWebClient(String baseUrl) throws Exception {
+        SslContext sslContext = buildClientSslContext(loadCertificate(System.getenv("TLS_CERT")));
 
         HttpClient httpClient = HttpClient.create()
                 .secure(spec -> spec.sslContext(sslContext)
                         .handlerConfigurator(h -> {
                             SSLEngine engine = h.engine();
                             SSLParameters sslParameters = engine.getSSLParameters();
-                            sslParameters.setServerNames(Collections.singletonList(new SNIHostName("localhost")));
+                            sslParameters.setServerNames(Collections.singletonList(new SNIHostName(System.getenv("SNI"))));
                             engine.setSSLParameters(sslParameters);
                         }))
-                .protocol(HttpProtocol.H2, HttpProtocol.HTTP11)
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .option(ChannelOption.TCP_NODELAY, true)
+                .protocol(HttpProtocol.HTTP11)
                 .keepAlive(true);
 
-        ObjectMapper mapper = new ObjectMapper();
-        Jackson2JsonDecoder decoder = new Jackson2JsonDecoder(mapper, MediaType.APPLICATION_NDJSON);
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "valid")
                 .exchangeStrategies(ExchangeStrategies.builder()
-                        .codecs(codecs -> codecs.defaultCodecs().maxInMemorySize(1024 * 1024 * 10))
-                        .codecs(codecs -> codecs.defaultCodecs().jackson2JsonDecoder(decoder)).build())
+                        .codecs(codecs -> codecs.defaultCodecs().maxInMemorySize(1024 * 1024 * 100)).build())
                 .build();
     }
 
@@ -125,17 +155,10 @@ public class Streams {
         tmf.init(trustStore);
         return SslContextBuilder.forClient()
                 .trustManager(tmf)
-                .sslProvider(SslProvider.OPENSSL)
-                .applicationProtocolConfig(new ApplicationProtocolConfig(
-                        ApplicationProtocolConfig.Protocol.ALPN,
-                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                        ApplicationProtocolNames.HTTP_2,
-                        ApplicationProtocolNames.HTTP_1_1))
                 .build();
     }
 
-    public X509Certificate loadCertificate_1(String pemContent) throws Exception {
+    public X509Certificate loadCertificate(String pemContent) throws Exception {
         String cleanPem = pemContent
                 .replace("-----BEGIN CERTIFICATE-----", "")
                 .replace("-----END CERTIFICATE-----", "")
@@ -144,74 +167,36 @@ public class Streams {
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         return (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(cleanPem)));
     }
-
-    public TrustManagerFactory loadCertificate(String pemContent) throws Exception {
-        String cleanPem = pemContent
-                .replace("-----BEGIN CERTIFICATE-----", "")
-                .replace("-----END CERTIFICATE-----", "")
-                .replaceAll("\\s", ""); // Remove all whitespace/newlines
-
-        byte[] decoded = Base64.getDecoder().decode(cleanPem);
-
-        CertificateFactory factory = CertificateFactory.getInstance("X.509");
-        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        trustStore.load(null, null);
-
-        trustStore.setCertificateEntry("alias", (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(decoded)));
-
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(trustStore);
-        return tmf;
-    }
-
-
-    private TrustManager[] trustAllCerts = new TrustManager[]{
-            new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() {
-                    try {
-                        return new X509Certificate[]{loadCertificate_1(cert)};
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                public void checkClientTrusted(X509Certificate[] certs, String authType) {
-                }
-
-                public void checkServerTrusted(X509Certificate[] certs, String authType) {
-                    System.out.println(certs[0].getNotBefore());
-                }
-            }
-    };
 }
 
-class CO5Subscriber implements Subscriber<FluxMessage> {
-    AtomicInteger counter;
+class CO5Subscriber implements Subscriber<FluxMessageOuterClass.FluxMessage> {
     AtomicBoolean f = new AtomicBoolean();
     Subscription _Subscription;
     long start;
     int total;
-
-    CO5Subscriber(AtomicInteger c) {
-        counter = c;
-    }
-
     @Override
     public void onSubscribe(Subscription s) {
         _Subscription = s;
-        _Subscription.request(counter.get());
+        _Subscription.request(Long.MAX_VALUE);
         System.out.println("Streams Subscribed on " + Thread.currentThread().getName());
+        Streams.subscribed.setRelease(true);
     }
 
     @Override
-    public void onNext(FluxMessage m) {
-        if (counter.decrementAndGet() == 0) {
-            _Subscription.cancel();
-        }
-        if (counter.get() % 100 == 0) {
-            System.out.println(String.format("%s count %d, %s", Thread.currentThread().getName(), counter.get(),  m.getId()));
-            if (total != 0 && start != 0){
-                System.out.println(String.format("avg: %d",  (System.currentTimeMillis() - start)/(total - counter.get())));
+    public void onNext(FluxMessageOuterClass.FluxMessage m) {
+        if (Streams.flying.contains(m.getId()) && m.getSent() > 0) {
+            Streams.flying.remove(m.getId());
+            if (Streams.counter.decrementAndGet() == 0) {
+                _Subscription.cancel();
+            }
+            Streams.batch.decrementAndGet();
+            if (Streams.counter.getAcquire() % Streams.maxBatch == 0) {
+                System.out.println(String.format("%s count %d, %s", Thread.currentThread().getName(), Streams.counter.getAcquire(), m.getId()));
+                if (total != 0 && start != 0) {
+                    System.out.println(String.format("avg: %d, flying %d, batch %d"
+                            , (System.currentTimeMillis() - start) / (total - Streams.counter.getAcquire()), Streams.flying.size(), Streams.batch.getAcquire()));
+
+                }
             }
         }
     }
@@ -224,6 +209,7 @@ class CO5Subscriber implements Subscriber<FluxMessage> {
 
     @Override
     public void onComplete() {
+        System.out.println("COMPLETE");
         f.set(true);
     }
 }
